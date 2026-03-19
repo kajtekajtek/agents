@@ -77,7 +77,14 @@ If user provided a document template as a part of the prompt, stick to its forma
 
 ```
 
+### References
+
 - **Reference Integrity**: Ensure every numerical citation [n] corresponds to a valid, reachable URL in the References section.
+- **Reference Structure**:
+    - Reference used in text: `[J. R. R. Tolkien][2]`
+    - Reference listed in `## References` section: `- [J.R.R. Tolkien at wikipedia.org][2]`
+    - Link to the reference at the bottom of the file (not visible in preview, hence the `## References` section): `[2]: https://en.wikipedia.org/wiki/J._R._R._Tolkien`
+- **Reference Redundancy**: if something is already listed in `## References`, there is no need for it to be mentioned in `## Further Readings`
 
 ### Token-Optimization:
 
