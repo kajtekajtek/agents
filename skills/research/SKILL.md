@@ -97,5 +97,7 @@ If user provided a document template as a part of the prompt, stick to its forma
 
 - **Key:Value Mapping:** Use `Key: Value` format for facts and parameters instead of full paragraphs.
 - **Flat Lists:** Prefer single-level bullet points. Avoid deep nesting (saves indentation/whitespace tokens).
-- **Compact Tables:** Use tables for comparisons—they are often more token-efficient than descriptive text for structured data.
+- **Compact Tables:** Use tables for comparisons - they are often more token-efficient than descriptive text for structured data.
 - **Code Blocks:** Only use triple backticks for actual code. Do not wrap regular text in code blocks.
+- **Avoid using em-dashes** ("—")
+
