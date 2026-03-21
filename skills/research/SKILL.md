@@ -85,6 +85,27 @@ If user provided a document template as a part of the prompt, stick to its forma
     - Reference listed in `## References` section: `- [J.R.R. Tolkien at wikipedia.org][2]`
     - Link to the reference at the bottom of the file (not visible in preview, hence the `## References` section): `[2]: https://en.wikipedia.org/wiki/J._R._R._Tolkien`
 - **Reference Redundancy**: if something is already listed in `## References`, there is no need for it to be mentioned in `## Further Readings`
+- **DO NOT** put neither links nor names of references in the same line in which they are being referenced.
+
+#### DO NOT
+
+```markdown
+- optional **CloudWatch** alarms and **SNS** notification when a resource becomes unavailable [How Route 53 checks health][1].
+- It determines how Route 53 responds to DNS queries for that record [1](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/routing-policy.html).
+```
+
+#### DO
+
+```markdown
+- **Domain Name System (DNS)**: hierarchical, decentralized naming system for internet-connected resources[1][1]
+
+## References
+
+- [How internet traffic is routed to your website - Amazon Route 53 docs][1]
+
+[1]: https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/welcome-dns-service.html
+```
+
 
 ### Token-Optimization:
 
@@ -93,11 +114,25 @@ If user provided a document template as a part of the prompt, stick to its forma
 - **Aggressive Abbreviations:** Use industry-standard shorthand (e.g., `ref` for reference, `impl` for implementation, `docs` for documentation, `reqs` for requirements).
 - **No Redundancy:** Do not restate the prompt or repeat information.
 
+### Formatting for Readability
+
+- **Avoid using em-dashes** ("—")
+- Don't list or enumerate in-line.
+- Do:
+```
+- a
+- b
+    1. b1
+    2. b2
+```
+- Instead of:
+```
+- a
+- b: (1) b1, (2) b2
+```
+
 ### Formatting for Density:
 
 - **Key:Value Mapping:** Use `Key: Value` format for facts and parameters instead of full paragraphs.
-- **Flat Lists:** Prefer single-level bullet points. Avoid deep nesting (saves indentation/whitespace tokens).
 - **Compact Tables:** Use tables for comparisons - they are often more token-efficient than descriptive text for structured data.
 - **Code Blocks:** Only use triple backticks for actual code. Do not wrap regular text in code blocks.
-- **Avoid using em-dashes** ("—")
-
