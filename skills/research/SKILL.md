@@ -43,6 +43,73 @@ Gather information on a given topic using the sources provided and your own, and
 
 If user provided a document template as a part of the prompt, stick to its format and fill in the gaps, eventually adding more sections, references and further reading materials.
 
+### References
+
+- **Reference Integrity**: Ensure every numerical citation [n] corresponds to a valid, reachable URL in the References section.
+- **Reference Structure**:
+    - Reference used in line: `[J. R. R. Tolkien][2]`
+    - Reference listed in `## References` section: `- [J.R.R. Tolkien at wikipedia.org][2]`
+    - Link to the reference at the bottom of the file (not visible in preview, hence the `## References` section): `[2]: https://en.wikipedia.org/wiki/J._R._R._Tolkien`
+- **Reference Redundancy**: if something is already listed in `## References`, there is no need for it to be mentioned in `## Further Readings`
+- **DO NOT** put neither links nor names of references in the same line in which they are being referenced.
+    - **WRONG**: `Optional **CloudWatch** alarms and **SNS** notification when a resource becomes unavailable [How Route 53 checks health][1].`
+    - **WRONG**: `It determines how Route 53 responds to DNS queries for that record [1](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/routing-policy.html).`
+    - **CORRECT**: `**Domain Name System (DNS)**: hierarchical, decentralized naming system for internet-connected resources[1]`
+- If whole section references the same source, **DO NOT** repeat reference in every point. Put it in the last point instead.
+    - **WRONG**:
+    >```markdown
+    >- **What is Amazon S3?** Object storage service: ... [1]
+    >- Core AWS building block; ... [1]
+    >- **How it works** [1]
+    >    - ...
+    >- **Consistency**: ... [1]
+    >- ... [1] 
+    >```
+    - **CORRECT**:
+    >```markdown
+    >- **What is Amazon S3?** Object storage service: ... 
+    >- Core AWS building block; ... 
+    >- **How it works** 
+    >    - ...
+    >- **Consistency**: ... 
+    >- ... [1]
+    >```
+
+### Token-Optimization:
+
+- **Zero Filler:** Eliminate all conversational padding (e.g., "I've analyzed the files," "Based on my research"). Start directly with the data.
+- **Telegraphic Prose:** Use fragmented, note-style sentences.
+- **Aggressive Abbreviations:** Use industry-standard shorthand (e.g., `ref` for reference, `impl` for implementation, `docs` for documentation, `reqs` for requirements).
+- **No Redundancy:** Do not restate the prompt or repeat information.
+
+### Formatting for Readability
+
+- **Avoid using em-dashes** ("—")
+- Don't list or enumerate in-line.
+- **WRONG**:
+```markdown
+- a
+- b: (1) b1, (2) b2
+- c; d; e
+```
+- **CORRECT**:
+```markdown
+- a
+- b
+    1. b1
+    2. b2
+- c
+    - d
+    - e
+```
+
+
+### Formatting for Density:
+
+- **Key:Value Mapping:** Use `Key: Value` format for facts and parameters instead of full paragraphs.
+- **Compact Tables:** Use tables for comparisons - they are often more token-efficient than descriptive text for structured data.
+- **Code Blocks:** Only use triple backticks for actual code. Do not wrap regular text in code blocks.
+
 ```markdown
 # The Hobbit
 
@@ -76,63 +143,3 @@ If user provided a document template as a part of the prompt, stick to its forma
 [3]: https://en.wikipedia.org/wiki/The_Lord_of_the_Rings
 
 ```
-
-### References
-
-- **Reference Integrity**: Ensure every numerical citation [n] corresponds to a valid, reachable URL in the References section.
-- **Reference Structure**:
-    - Reference used in text: `[J. R. R. Tolkien][2]`
-    - Reference listed in `## References` section: `- [J.R.R. Tolkien at wikipedia.org][2]`
-    - Link to the reference at the bottom of the file (not visible in preview, hence the `## References` section): `[2]: https://en.wikipedia.org/wiki/J._R._R._Tolkien`
-- **Reference Redundancy**: if something is already listed in `## References`, there is no need for it to be mentioned in `## Further Readings`
-- **DO NOT** put neither links nor names of references in the same line in which they are being referenced.
-
-#### DO NOT
-
-```markdown
-- optional **CloudWatch** alarms and **SNS** notification when a resource becomes unavailable [How Route 53 checks health][1].
-- It determines how Route 53 responds to DNS queries for that record [1](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/routing-policy.html).
-```
-
-#### DO
-
-```markdown
-- **Domain Name System (DNS)**: hierarchical, decentralized naming system for internet-connected resources[1][1]
-
-## References
-
-- [How internet traffic is routed to your website - Amazon Route 53 docs][1]
-
-[1]: https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/welcome-dns-service.html
-```
-
-
-### Token-Optimization:
-
-- **Zero Filler:** Eliminate all conversational padding (e.g., "I've analyzed the files," "Based on my research"). Start directly with the data.
-- **Telegraphic Prose:** Use fragmented, note-style sentences.
-- **Aggressive Abbreviations:** Use industry-standard shorthand (e.g., `ref` for reference, `impl` for implementation, `docs` for documentation, `reqs` for requirements).
-- **No Redundancy:** Do not restate the prompt or repeat information.
-
-### Formatting for Readability
-
-- **Avoid using em-dashes** ("—")
-- Don't list or enumerate in-line.
-- Do:
-```
-- a
-- b
-    1. b1
-    2. b2
-```
-- Instead of:
-```
-- a
-- b: (1) b1, (2) b2
-```
-
-### Formatting for Density:
-
-- **Key:Value Mapping:** Use `Key: Value` format for facts and parameters instead of full paragraphs.
-- **Compact Tables:** Use tables for comparisons - they are often more token-efficient than descriptive text for structured data.
-- **Code Blocks:** Only use triple backticks for actual code. Do not wrap regular text in code blocks.
