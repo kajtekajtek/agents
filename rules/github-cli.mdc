@@ -1,0 +1,18 @@
+---
+description: When interacting with GitHub (repos, issues, pull requests, releases, Actions, gists, or the GitHub API)—use the GitHub CLI gh from the shell.
+alwaysApply: false
+---
+
+# GitHub via `gh`
+
+- **Default tool**: Use the [GitHub CLI](https://cli.github.com/) (`gh`) for GitHub operations instead of `curl` to `api.github.com`, scraping the web UI, or GitHub MCP server - unless the user forbids it or `gh` cannot do the job.
+- **Discover flags**: Prefer `gh <command> --help` or `gh help <topic>` over inventing subcommands or API shapes.
+- **Auth**: Rely on `gh auth status` / existing `gh` login. If `gh` is missing or unauthenticated, say so and suggest `gh auth login` (or install) rather than embedding secrets.
+- **Typical flows**
+  - Searching: `gh search code`, `gh search repos`, `gh search commits`
+  - Repos: `gh repo view`, `gh repo clone`
+  - PRs: `gh pr list`, `gh pr view`, `gh pr create`, `gh pr checkout`, `gh pr diff`, `gh pr merge`
+  - Issues: `gh issue list`, `gh issue view`, `gh issue create`, `gh issue comment`, `gh issue close`
+  - Actions: `gh run list`, `gh run view`, `gh workflow run`
+  - API: `gh api` with method/path/body when there is no dedicated subcommand
+- **Output**: Prefer `--json` with explicit fields when parsing is needed; use plain/tabular output for human-readable summaries in the terminal.
