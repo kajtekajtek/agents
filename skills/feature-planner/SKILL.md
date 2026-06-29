@@ -1,30 +1,33 @@
 ---
-name: task-planner
-description: Turns a Jira issue key or free-form task description into a single markdown plan file (task scope, current state, high-level implementation steps, references). Use when the user wants a task plan, implementation outline, ticket breakdown, plan file, or asks to plan work from a Jira ticket or feature description.
+name: feature-planner
+description: Turns a Jira issue key or free-form feature/refactor description into a single markdown plan file (task scope, current state, high-level implementation steps, references). Use when the user wants a plan for building a feature or doing a refactor — an implementation outline, ticket breakdown, or plan file from a Jira ticket or feature description. For bugs, spikes, or tech discoveries that need investigation first, use investigation-planner instead.
 ---
 
-# Task planner
+# Feature planner
 
 ## When to use
 
-- User provides a **Jira key** (e.g. `PLAT-440`) or describes a feature/bug without a ticket.
+- The task is a **feature** or **refactor** — the desired behavior is known and the main question is *how to build it*.
+- User provides a **Jira key** (e.g. `PLAT-440`) or describes the feature/refactor without a ticket.
 - User asks for a **plan**, **scope**, **implementation outline**, or a **markdown file** to understand work before coding.
+
+For **bugs, spikes, or technical discoveries** — where the root cause or feasibility is unknown and must be investigated before any implementation can be planned — use **investigation-planner** instead.
 
 ## Workflow
 
 1. **Clarify input**
    - If only a ticket key is given, treat summary, description, and acceptance criteria from Jira as the source of truth when available.
-   - If the user describes the task in chat, use that text
-   - **Ask targeted questions** if the goal is ambiguous, details are unclear, design decisions are to be made. **Don't speculate**
+   - If the user describes the task in chat, use that text.
+   - **Ask targeted questions** if the goal is ambiguous, details are unclear, or design decisions are to be made. **Don't speculate.**
 
 2. **Jira (optional)**
-   - If a ticket key is provided **and** the Atlassian MCP server is available: read that MCP server’s tool descriptors first, then fetch the issue and use its fields for **Task Description** and **Acceptance Criteria**.
-   - If MCP is missing or auth fails, proceed from the user’s pasted ticket text or ask them to paste the ticket body.
+   - If a ticket key is provided **and** the Atlassian MCP server is available: read that MCP server's tool descriptors first, then fetch the issue and use its fields for **Task Description** and **Acceptance Criteria**.
+   - If MCP is missing or auth fails, proceed from the user's pasted ticket text or ask them to paste the ticket body.
 
 3. **Codebase**
    - Read `README.md` or project docs if unfamiliar with the repo.
    - Inspect files and modules that the task likely touches so **Current State** is accurate and concise—not speculative.
-   - If the directory is empty or user input involves external repositories **and** Github MCP server is available, use it to search for the codebases 
+   - If the directory is empty or user input involves external repositories **and** Github MCP server is available, use it to search for the codebases.
 
 4. **Write the file**
    - **Path / name**
