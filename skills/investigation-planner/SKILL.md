@@ -32,6 +32,7 @@ For **features or refactors** where the desired behavior is known and the main q
    - Read `README.md` or project docs if unfamiliar with the repo.
    - **Trace the relevant code paths** end to end: entry points, the functions/modules involved, error handling, edge cases, recent changes (git history/blame) that could explain the behavior.
    - **Reproduce or reason about reproduction** where possible from the code, tests, or sample data.
+   - **When the primary evidence is a monitoring aggregate** (a Bugsnag/Sentry error, a log pattern, a metric spike): a single occurrence is not the whole story. **Sample many occurrences before forming hypotheses** and characterize the distribution — across message/value patterns, affected entities, release/version, and time. Then **explicitly test whether it's one bug or several** (distinct message families or value patterns often mean distinct causes) before committing to a single root cause. For Bugsnag specifically, use the **fetching-bugsnag-errors** skill's `--sample N` mode; watch for custom grouping, which makes any one event unrepresentative.
    - For spikes/discoveries: assess feasibility, prototype mentally or with throwaway checks, identify constraints and unknowns.
    - **Form hypotheses only when the evidence supports them.** Don't list speculative guesses to look thorough — a hypothesis belongs here only if you're confident enough that it's plausible and can point to evidence for it. If nothing rises to that bar yet, say so and lean on **Open Questions & Information to Gather** instead. For each hypothesis you do keep, look for evidence that confirms or rules it out, and note what you ruled out and why.
 
@@ -100,6 +101,7 @@ Use this structure for section headings (adjust the title line; keep the Impleme
 - [ ] Filename matches issue key or a clear problem slug.
 - [ ] **Investigation So Far** reflects real work in the repo (paths/names, findings, what was ruled out) — not a restatement of the problem.
 - [ ] **Hypotheses** are evidence-backed and ranked — none listed speculatively.
+- [ ] If findings rest on a **monitoring aggregate**, they reflect a **sampled distribution** of occurrences (message/value patterns, entities, release, time) and explicitly address whether it's one bug or several — not a single representative event.
 - [ ] **Open Questions & Information to Gather** lists only things the agent genuinely cannot determine itself.
 - [ ] **Fix Proposal** is present only when the cause/approach is confidently understood; otherwise clearly marked blocked.
 - [ ] **References** lists real links or search leads, not placeholders.
