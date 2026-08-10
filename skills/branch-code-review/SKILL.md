@@ -71,7 +71,8 @@ Group every finding into one of three severity levels (see output template).
 
 ### 7. Write the report
 
-- **Path**: `./tmp/<TICKET-KEY>-code-review.md` (create `./tmp/` if needed)
+- If user asked for an output file, write the report to **Path**: `./tmp/<TICKET-KEY>-code-review.md` (create `./tmp/` if needed)
+- Otherwise, return the report in the chat.
 - Use the output template below verbatim for headings
 
 ## Output template
@@ -120,4 +121,4 @@ If a severity group has no findings, write `_No findings._` under its heading ra
 - [ ] Implementation overview covers **all changed files** (check diff).
 - [ ] Every finding references the exact file (and line range when possible).
 - [ ] Findings are classified consistently — Blocking is reserved for correctness/security/build issues.
-- [ ] Report is written to `./tmp/<TICKET-KEY>-code-review.md`.
+- [ ] Report is written to `./tmp/<TICKET-KEY>-code-review.md` (if user asked for it).
