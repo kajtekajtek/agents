@@ -14,103 +14,94 @@ description: Reviews code changes on a git branch by combining Jira ticket conte
 
 Parse these from the user's invocation (e.g. `PLAT-605 --fix --comment`):
 
-- `--fix` — after reporting findings, apply Blocking and Should-fix findings directly to the working tree (step 8). Nits are left alone unless the user says otherwise.
-- `--comment` — post each finding as an inline PR review comment (step 9). Requires an open PR for the branch.
+- `--fix` — apply Blocking/Should-fix findings to the working tree (step 7). Nits are left alone unless asked.
+- `--comment` — post each finding as an inline PR review comment (step 8). Requires an open PR.
 
-Both flags can be combined. Neither is required — with no flags, the skill just reports findings.
+Both can be combined. With neither, the skill just reports findings.
 
 ## Workflow
 
 ### 1. Gather inputs
 
-Identify from the user's message or current context:
 - **Jira ticket key** (required) — e.g. `PLAT-605`
-- **Branch name** — default to current branch (`git rev-parse --abbrev-ref HEAD`) if not specified
-- **Linked tickets** — note any spike/parent ticket keys the user mentions
+- **Branch name** — default to current branch (`git rev-parse --abbrev-ref HEAD`)
+- **Linked tickets** — note any spike/parent keys the user mentions
 
-### 2. Fetch Jira context (if Atlassian MCP available)
+### 2. Fetch Jira context
 
-Read the Atlassian MCP server tool descriptors, then:
-- Fetch the primary Jira ticket
-- If a linked spike/parent key is mentioned, fetch that ticket too
-- Extract: summary, description, acceptance criteria, linked issues
-
-If MCP is unavailable or auth fails, ask the user to paste the ticket description.
+Fetch the primary ticket (and linked spike/parent, if mentioned) via Atlassian MCP. If the tool takes a fields filter, request only `summary`, `description`, `acceptance criteria`, and `linked issues` — skip changelog/attachments/watchers payloads you won't use. If MCP is unavailable, ask the user to paste the ticket description.
 
 ### 3. Fetch PR info (if a PR exists)
 
-Use the GitHub CLI to get PR details for the branch:
-
 ```bash
-gh pr view --json title,body,url,state,reviews,comments
+gh pr view --json number,title,url
 ```
 
-If no PR exists yet, skip this step silently.
+Only pull `reviews,comments` as well if `--comment` is set (needed to avoid posting duplicate comments in step 8). If no PR exists, skip silently.
 
-### 4. Get the diff
+### 4. Delegate the diff review to a subagent
 
-```bash
-git diff origin/main...HEAD
+The diff itself is the biggest token cost in this skill and has no reason to live in your main context for the rest of the conversation. Dispatch it instead of reading it directly:
+
+Spawn `Agent` (subagent_type `general-purpose`, foreground — you need its result before continuing) with a prompt that includes:
+- The ticket summary, description, and acceptance criteria from step 2
+- The branch/commit range to diff: `origin/main...HEAD` (or `origin/main...<branch-name>` if reviewing a branch other than the current one)
+- Instructions to: run `git diff --stat` first to gauge size, then the full diff excluding generated/lockfiles (e.g. `git diff origin/main...HEAD -- . ':!*.lock' ':!package-lock.json' ':!*.min.js' ':!pnpm-lock.yaml' ':!yarn.lock'`)
+- The review checklist: correctness/logic, edge cases and error handling, style/consistency, test coverage, security/performance, adherence to the acceptance criteria
+- The severity model: Blocking (correctness/security/build issues that must be fixed before merge), Should-fix (strong improvement, address in this PR), Nit (minor, optional)
+- The exact return shape needed (see below) — ask it to return this as its final answer, nothing else
+
+Required return shape (plain text/JSON in the subagent's final message):
+```
+{
+  "implementation_overview": "<files/modules touched, key decisions, grounded in the ticket>",
+  "findings": [
+    {
+      "file": "...", "line": 42,
+      "summary": "Blocking: ...",
+      "failure_scenario": "...",
+      "short_summary": "...",
+      "category": "correctness"
+    }
+  ]
+}
 ```
 
-If the branch name differs from HEAD, use:
+### 5. Report findings
 
-```bash
-git diff origin/main...<branch-name>
-```
-
-### 5. Describe the implementation
-
-Read the diff and write a concise narrative:
-- What was changed and why (grounded in the ticket)
-- Which files/modules are involved
-- Key design decisions visible in the code
-
-### 6. Code review
-
-Review the diff for:
-- Correctness and logic
-- Edge cases and error handling
-- Code style and consistency with the existing codebase
-- Tests — are changes covered?
-- Security and performance concerns
-- Adherence to ticket acceptance criteria
-
-Classify every finding into one of three severity levels: Blocking (correctness/security/build issues that must be fixed before merge), Should-fix (strong improvement, address in this PR), Nit (minor, optional).
-
-### 7. Report findings
-
-Call `ReportFindings` once, findings ordered most-severe first (Blocking → Should-fix → Nit). Map each finding to the tool's schema:
+Take the subagent's `findings` array and call `ReportFindings` once, ordered most-severe first (Blocking → Should-fix → Nit):
 
 - `file`, `line` — exact location
-- `summary` — starts with the severity tier as a label, e.g. `"Blocking: <one-sentence defect>"`, `"Should-fix: ..."`, `"Nit: ..."` — this is the only place severity lives, so keep the label literal and parse it back out in steps 8–9
-- `failure_scenario` — concrete input/state that triggers it, or (for style/test-coverage findings with no runtime failure) the concrete downside
-- `short_summary` — compressed claim, ≤60 chars, no severity prefix here
-- `category` — defect type, e.g. `correctness`, `security`, `performance`, `style`, `test-coverage`
+- `summary` — leads with the severity label, e.g. `"Blocking: <defect>"` — this is the only place severity lives; steps 7–8 parse it back out
+- `failure_scenario` — concrete triggering input/state, or the concrete downside for style/test-coverage findings
+- `short_summary` — compressed claim, ≤60 chars, no severity prefix
+- `category` — defect type (`correctness`, `security`, `performance`, `style`, `test-coverage`, ...)
 
-Pass `findings: []` if the diff is clean — don't skip the call.
+Pass `findings: []` if the subagent found nothing — don't skip the call.
 
-Then, in chat (or in the optional markdown file), give the narrative context the tool call doesn't carry:
-- Ticket summary (one paragraph, from Jira or user input)
-- Implementation overview (files/modules touched, key decisions, grounded in the ticket)
+### 6. Narrative output
+
+In chat (or the optional file), give what the tool call doesn't carry:
+- Ticket summary (one paragraph)
+- Implementation overview (from the subagent's `implementation_overview`)
 - One-paragraph overall merge-readiness assessment
 
-If the user asked for an output file, write those three narrative sections to `./tmp/<TICKET-KEY>-code-review.md` (create `./tmp/` if needed) — the findings themselves live in the `ReportFindings` call, not the file.
+If the user asked for a file, write those three sections to `./tmp/<TICKET-KEY>-code-review.md` (create `./tmp/` if needed) — findings stay in the `ReportFindings` call, not the file.
 
-### 8. Apply fixes (`--fix` only)
+### 7. Apply fixes (`--fix` only)
 
-For each finding whose `summary` starts with `Blocking:` or `Should-fix:`, use Edit to apply the fix directly to the working tree. Skip `Nit:` findings unless the user asked for them too. Re-call `ReportFindings` with the same findings, each annotated with `outcome`: `fixed`, `skipped`, or `no_change_needed`.
+For each finding whose `summary` starts with `Blocking:` or `Should-fix:`, Read the target file and use Edit to apply the fix. Skip `Nit:` findings unless asked. Re-call `ReportFindings` with the same findings, each annotated with `outcome`: `fixed`, `skipped`, or `no_change_needed`.
 
-### 9. Post inline PR comments (`--comment` only)
+### 8. Post inline PR comments (`--comment` only)
 
-Requires an open PR (see step 3). Get the PR number and head commit:
+Requires an open PR (step 3).
 
 ```bash
 PR_NUMBER=$(gh pr view --json number -q .number)
 COMMIT_SHA=$(git rev-parse HEAD)
 ```
 
-For each finding that has a `line`, post an inline review comment:
+For each finding with a `line`:
 
 ```bash
 gh api repos/{owner}/{repo}/pulls/$PR_NUMBER/comments \
@@ -122,15 +113,13 @@ gh api repos/{owner}/{repo}/pulls/$PR_NUMBER/comments \
   -F line=<line>
 ```
 
-Findings without a `line`, or where the API rejects the line as not part of the diff, fall back to a single consolidated comment via `gh pr comment`.
+Skip findings that match an existing comment/review already fetched in step 3. Findings without a `line`, or rejected because the line isn't part of the diff, fall back to one consolidated `gh pr comment`.
 
 ## Quality checks
 
-- [ ] Jira ticket goal is correctly summarised.
-- [ ] Implementation overview covers **all changed files** (check diff).
-- [ ] `ReportFindings` was called even when there are zero findings.
+- [ ] Diff review was delegated to a subagent — raw diff isn't sitting in the main conversation.
+- [ ] `ReportFindings` was called even with zero findings.
 - [ ] Every finding has an exact file (and line, when possible) and a concrete `failure_scenario`.
-- [ ] Every `summary` leads with its severity label (`Blocking:` / `Should-fix:` / `Nit:`) — Blocking is reserved for correctness/security/build issues; `category` separately records the defect type.
+- [ ] Every `summary` leads with its severity label; `category` separately records defect type.
 - [ ] `--fix` only touches Blocking/Should-fix findings, and outcomes are re-reported.
-- [ ] `--comment` only runs when a PR exists; falls back gracefully for findings with no line.
-- [ ] Narrative sections are written to `./tmp/<TICKET-KEY>-code-review.md` (if user asked for it).
+- [ ] `--comment` only runs when a PR exists, skips duplicates, and falls back gracefully for findings with no line.
