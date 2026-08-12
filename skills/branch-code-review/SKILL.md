@@ -1,6 +1,6 @@
 ---
 name: branch-code-review
-description: Reviews code changes on a git branch by combining Jira ticket context, git diff, and optional PR details into a structured markdown report. Use when the user asks for a code review, wants to review a branch, mentions a Jira key with branch changes, or asks to review a PR or diff.
+description: Reviews code changes on a git branch by combining Jira ticket context, git diff, and optional PR details, reporting findings via ReportFindings. Use when the user asks for a code review, wants to review a branch, mentions a Jira key with branch changes, or asks to review a PR or diff. Supports --fix (apply findings to the working tree) and --comment (post findings as inline PR comments).
 ---
 
 # Branch Code Review
@@ -9,6 +9,15 @@ description: Reviews code changes on a git branch by combining Jira ticket conte
 
 - User provides a **Jira key** (e.g. `PLAT-605`) or link to the ticket, and a **branch name** (or the current branch is the feature branch).
 - User asks to **review changes**, **review a branch**, or **review a PR**.
+
+## Flags
+
+Parse these from the user's invocation (e.g. `PLAT-605 --fix --comment`):
+
+- `--fix` — after reporting findings, apply Blocking and Should-fix findings directly to the working tree (step 8). Nits are left alone unless the user says otherwise.
+- `--comment` — post each finding as an inline PR review comment (step 9). Requires an open PR for the branch.
+
+Both flags can be combined. Neither is required — with no flags, the skill just reports findings.
 
 ## Workflow
 
@@ -67,58 +76,61 @@ Review the diff for:
 - Security and performance concerns
 - Adherence to ticket acceptance criteria
 
-Group every finding into one of three severity levels (see output template).
+Classify every finding into one of three severity levels: Blocking (correctness/security/build issues that must be fixed before merge), Should-fix (strong improvement, address in this PR), Nit (minor, optional).
 
-### 7. Write the report
+### 7. Report findings
 
-- If user asked for an output file, write the report to **Path**: `./tmp/<TICKET-KEY>-code-review.md` (create `./tmp/` if needed)
-- Otherwise, return the report in the chat.
-- Use the output template below verbatim for headings
+Call `ReportFindings` once, findings ordered most-severe first (Blocking → Should-fix → Nit). Map each finding to the tool's schema:
 
-## Output template
+- `file`, `line` — exact location
+- `summary` — starts with the severity tier as a label, e.g. `"Blocking: <one-sentence defect>"`, `"Should-fix: ..."`, `"Nit: ..."` — this is the only place severity lives, so keep the label literal and parse it back out in steps 8–9
+- `failure_scenario` — concrete input/state that triggers it, or (for style/test-coverage findings with no runtime failure) the concrete downside
+- `short_summary` — compressed claim, ≤60 chars, no severity prefix here
+- `category` — defect type, e.g. `correctness`, `security`, `performance`, `style`, `test-coverage`
 
-```markdown
-# <TICKET-KEY> Code Review
+Pass `findings: []` if the diff is clean — don't skip the call.
 
-## Ticket summary
+Then, in chat (or in the optional markdown file), give the narrative context the tool call doesn't carry:
+- Ticket summary (one paragraph, from Jira or user input)
+- Implementation overview (files/modules touched, key decisions, grounded in the ticket)
+- One-paragraph overall merge-readiness assessment
 
-[One-paragraph summary of what the ticket asks for, from Jira or user input.]
+If the user asked for an output file, write those three narrative sections to `./tmp/<TICKET-KEY>-code-review.md` (create `./tmp/` if needed) — the findings themselves live in the `ReportFindings` call, not the file.
 
-## Implementation overview
+### 8. Apply fixes (`--fix` only)
 
-[Concise narrative of how the changes implement the ticket: files touched, approach taken, key decisions.]
+For each finding whose `summary` starts with `Blocking:` or `Should-fix:`, use Edit to apply the fix directly to the working tree. Skip `Nit:` findings unless the user asked for them too. Re-call `ReportFindings` with the same findings, each annotated with `outcome`: `fixed`, `skipped`, or `no_change_needed`.
 
-## Review findings
+### 9. Post inline PR comments (`--comment` only)
 
-### 🔴 Blocking
+Requires an open PR (see step 3). Get the PR number and head commit:
 
-> Must be fixed before merge.
-
-- **[File:line]** Description of the issue and why it blocks.
-
-### 🟡 Should-fix
-
-> Strong improvement, should address in this PR.
-
-- **[File:line]** Description and suggested fix.
-
-### 🔵 Nit
-
-> Minor style or preference; optional.
-
-- **[File:line]** Description.
-
-## Summary
-
-[One-paragraph overall assessment: is the implementation sound, what are the main concerns, merge readiness.]
+```bash
+PR_NUMBER=$(gh pr view --json number -q .number)
+COMMIT_SHA=$(git rev-parse HEAD)
 ```
 
-If a severity group has no findings, write `_No findings._` under its heading rather than omitting the section.
+For each finding that has a `line`, post an inline review comment:
+
+```bash
+gh api repos/{owner}/{repo}/pulls/$PR_NUMBER/comments \
+  -f body="**<summary>**
+
+<failure_scenario>" \
+  -f commit_id="$COMMIT_SHA" \
+  -f path="<file>" \
+  -F line=<line>
+```
+
+Findings without a `line`, or where the API rejects the line as not part of the diff, fall back to a single consolidated comment via `gh pr comment`.
 
 ## Quality checks
 
 - [ ] Jira ticket goal is correctly summarised.
 - [ ] Implementation overview covers **all changed files** (check diff).
-- [ ] Every finding references the exact file (and line range when possible).
-- [ ] Findings are classified consistently — Blocking is reserved for correctness/security/build issues.
-- [ ] Report is written to `./tmp/<TICKET-KEY>-code-review.md` (if user asked for it).
+- [ ] `ReportFindings` was called even when there are zero findings.
+- [ ] Every finding has an exact file (and line, when possible) and a concrete `failure_scenario`.
+- [ ] Every `summary` leads with its severity label (`Blocking:` / `Should-fix:` / `Nit:`) — Blocking is reserved for correctness/security/build issues; `category` separately records the defect type.
+- [ ] `--fix` only touches Blocking/Should-fix findings, and outcomes are re-reported.
+- [ ] `--comment` only runs when a PR exists; falls back gracefully for findings with no line.
+- [ ] Narrative sections are written to `./tmp/<TICKET-KEY>-code-review.md` (if user asked for it).
