@@ -49,7 +49,7 @@ For **features or refactors** where the desired behavior is known and the main q
    - **Ask "what changed?" first.** For anything that used to work, this is usually the whole answer: compare first-seen timestamp against deploys/releases, then `git log`/`git blame` the suspect paths. Cheap, and it either hands you the cause or eliminates a regression outright.
    - **Trace the relevant code paths** end to end: entry points, the functions/modules involved, error handling, edge cases.
    - **Prefer an executable check over reasoning.** A failing test, a throwaway script, or a query settles in one run what a paragraph of inference only makes plausible. Record the command and its output as evidence. "Reason about reproduction" is the fallback when nothing is runnable — not the default.
-   - **When the primary evidence is a monitoring aggregate** (a Bugsnag/Sentry error, a log pattern, a metric spike): a single occurrence is not the whole story. **Sample many occurrences before forming hypotheses** and characterize the distribution — across message/value patterns, affected entities, release/version, and time. Then **explicitly test whether it's one bug or several** (distinct message families or value patterns often mean distinct causes) before committing to a single root cause. For Bugsnag specifically, use the **fetching-bugsnag-errors** skill's `--sample N` mode; watch for custom grouping, which makes any one event unrepresentative.
+   - **When the primary evidence is a monitoring aggregate** (a Bugsnag/Sentry error, a log pattern, a metric spike): a single occurrence is not the whole story. Sample many occurrences, characterize the distribution, and explicitly test whether it's one bug or several before committing to a root cause — see `references/monitoring-evidence.md`.
    - For spikes/discoveries: assess feasibility, prototype with throwaway checks, identify constraints and unknowns.
    - For a bug that reproduces but resists explanation, **superpowers:systematic-debugging** is the sharper tool — use it, then bring its result back here.
 
@@ -69,7 +69,7 @@ For **features or refactors** where the desired behavior is known and the main q
    - **Path / name**
      - With issue key: `{KEY}.md` (e.g. `PLAT-440.md`).
      - Without ticket: derive a short **kebab-case slug** for the filename (e.g. `ecosio-timeout-investigation.md`); avoid generic names like `plan.md`.
-   - **Location**: repository root unless the user specifies another directory.
+   - **Location**: repository root unless the user specifies another directory. If the repo has a gitignored scratch directory (e.g. `./tmp/`), prefer it — an investigation file shouldn't land in someone's next commit.
 
 9. **Fix proposal — only when confident**
    - Include the **Fix Proposal** section with real steps **only if** the investigation has reached a confident understanding of the cause/approach.
@@ -87,14 +87,19 @@ Use this structure for section headings (adjust the title line; keep the **Fix P
 ```markdown
 # [ticket number / problem name]
 
+**Status**: Investigating | Root cause identified | Blocked on [what]
+**TL;DR**: [one line — where this stands, so nobody has to read the file to find out]
+
 ## Problem Description
 
-[Symptoms or the open question. For bugs: expected vs. actual behavior, when/where it occurs, impact.]
+[Symptoms or the open question. For bugs: expected vs. actual behavior, when/where it occurs.]
+
+**Impact & scope**: how often, who/what is affected, and since when (first-seen vs. release/deploy). Write "unknown" rather than guessing.
 
 ## Investigation So Far
 
 - **What was checked**: code paths traced, files/modules involved, git history, tests, data examined.
-- **Findings**: concrete facts established from the repo and available evidence.
+- **Findings**: concrete facts, each anchored to its evidence — `path/File.kt:120`, a commit sha, an event id, or the command run and its output.
 - **Ruled out**: what was considered and eliminated, with the reason.
 
 ## Hypotheses
@@ -117,7 +122,10 @@ Use this structure for section headings (adjust the title line; keep the **Fix P
 > Include real steps ONLY when the cause/approach is confidently understood.
 > Otherwise: **Blocked pending investigation** — resolve the items in *Open Questions & Information to Gather* first.
 
-- (When ready) High-level steps, components to touch (change vs new), and what to test.
+- (When ready) High-level steps and components to touch (change vs new) — no line-by-line design.
+- **Blast radius**: what else the change can affect.
+- **How it's verified**: the check that fails now and passes after the fix.
+- If the fix is big enough to need a plan of its own, stop here and hand off to **feature-planner** or plan mode.
 
 ## References
 
@@ -128,12 +136,14 @@ Use this structure for section headings (adjust the title line; keep the **Fix P
 
 ## Quality checks
 
-- [ ] Filename matches issue key or a clear problem slug.
+- [ ] Filename matches issue key or a clear problem slug, and the file opens with a **Status** line and TL;DR.
+- [ ] **Impact & scope** is filled in or explicitly marked unknown — not guessed.
 - [ ] Heavy exploration was delegated to subagents — raw file dumps and diffs aren't sitting in the main conversation.
 - [ ] **Investigation So Far** reflects real work in the repo (paths/names, findings, what was ruled out) — not a restatement of the problem.
+- [ ] Every finding is anchored to concrete evidence (path/line, commit, event id, or command output).
 - [ ] **Hypotheses** are evidence-backed and ranked — none listed speculatively.
 - [ ] If findings rest on a **monitoring aggregate**, they reflect a **sampled distribution** of occurrences (message/value patterns, entities, release, time) and explicitly address whether it's one bug or several — not a single representative event.
 - [ ] **Open Questions & Information to Gather** lists only things the agent genuinely cannot determine itself.
-- [ ] **Fix Proposal** is present only when the cause/approach is confidently understood; otherwise clearly marked blocked.
+- [ ] **Fix Proposal** is present only when the cause/approach is confidently understood; otherwise clearly marked blocked. When present, it stays high level and says how the fix is verified.
 - [ ] **References** lists real links or search leads, not placeholders.
 - [ ] Resuming an existing investigation updated the same file rather than creating a new one.
