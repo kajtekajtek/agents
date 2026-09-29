@@ -1,6 +1,6 @@
 ---
 name: fetching-bugsnag-errors
-description: Use when you have a Bugsnag error or event link (app.bugsnag.com/... or a self-hosted Bugsnag dashboard URL) and need to retrieve that error's details via the Bugsnag Data Access API. Also use when asked to look up, fetch, or investigate a Bugsnag error/crash from a dashboard link.
+description: Use when you have a Bugsnag error or event link (app.bugsnag.com/... or a self-hosted Bugsnag dashboard URL) and need to retrieve that error's details via the Bugsnag Data Access API. Also use when asked to look up, fetch, or investigate a Bugsnag error/crash from a dashboard link, or to extract per-event data (ids, amounts, release versions) from an error group.
 ---
 
 # Fetching Bugsnag Errors
@@ -49,7 +49,16 @@ Quote the URL — it contains `?` and `&`. The error object is aggregate metadat
 
 When you see that warning (or grouping is otherwise custom), re-run with `--sample N` and report the **distribution**, not one message. The frequency table masks numbers/ids (`<n>`, `<id>`) so distinct value-patterns collapse; use it to judge **whether the group is one underlying bug or several** (e.g. distinct message families = likely distinct causes).
 
-### 3. Handle what the script reports
+### 3. When masking defeats the purpose, pull raw events yourself
+
+`--sample` deliberately masks numbers and ids (`<n>`, `<id>`). That is exactly right for judging *how many bugs* a group holds — and useless when the **values themselves are the question** ("which invoices failed?", "how big is each delta?", "which release produced these?").
+
+In that case call the events endpoint directly (mechanics below) rather than trying to coax the script into it. Two rules that otherwise cost you a wrong answer:
+
+- **Pass `full_reports=true`,** or `app`, `device`, `request` and `metaData` come back **`null`** — present but empty. A version or release-stage tally then reads as all-`None`, which looks like "the data isn't there" rather than "you asked for the summary form".
+- **Re-filter on release stage client-side.** Several environments commonly run the same job and report into the same group, so an unfiltered (or silently unapplied) filter double- or triple-counts. Check `app.releaseStage` on the rows you actually received; never trust the server-side filter alone.
+
+### 4. Handle what the script reports
 
 The script exits non-zero with a diagnostic prefix. **Do not silently retry or guess** — act on the specific message:
 
@@ -60,7 +69,7 @@ The script exits non-zero with a diagnostic prefix. **Do not silently retry or g
 | `API_ERROR` (3), `401`/`403` | Token invalid or lacks access | Tell the user the token was rejected; ask them to check/regenerate it |
 | `API_ERROR` (3), org/project not found | Slug not visible to this token | Report which slug failed; the token's user may not be a member of that org/project |
 
-### 4. Present the result
+### 5. Present the result
 
 Summarize the returned JSON for the user (error class, message, status, event count, first/last seen, release stages). Don't dump raw JSON unless asked. If you sampled, report the **message-pattern distribution** and call out whether it looks like one bug or several — do not present a single event's message as the whole story.
 
@@ -76,6 +85,16 @@ Only bypass the script if it can't run (no bash/jq). The mechanics it encodes:
   3. `GET /projects/{project_id}/errors/{error_id}` → the error (this is `viewErrorOnProject`)
   4. (optional) `GET /projects/{project_id}/errors/{error_id}/latest_event` → stacktrace/context
   5. (sampling) `GET /projects/{project_id}/errors/{error_id}/events?per_page=30` → paginate via the `Link: rel="next"` header, then tally `exceptions[0].message` across events
+  6. (deploy timeline) `GET /projects/{project_id}/release_groups?release_stage_name=<stage>` → per-version `first_released_at` for that stage. `release_stage_name` is **required** — omitting it returns `400 release_stage_name can't be blank`.
+  7. (raw releases) `GET /projects/{project_id}/releases` → individual releases. **`per_page` maxes at 10 here**; higher returns `400 Per page must be less than or equal to 10`.
+
+- **Events endpoint parameters** (`/errors/{error_id}/events`) — these are where most direct calls go wrong:
+  - `full_reports=true` is **required** for `app`, `device`, `request`, `metaData`. Without it those keys are `null`, not absent, so nothing errors.
+  - Filters use a **bare `[]`**, not an index: `filters[app.release_stage][][type]=eq&filters[app.release_stage][][value]=production`. The indexed form `filters[...][0][type]=...` returns **400**. Time window: `filters[event.since][][value]=7d` (or an ISO-8601 timestamp).
+  - Mind the naming split: the **filter** key is snake_case (`app.release_stage`), the **payload** key is camelCase (`app.releaseStage`).
+  - `per_page=30` is the safe ceiling; `per_page=100` returns **429**. Back off on 429/502/503 and honour `Retry-After`.
+  - Results are **newest-first**, so any page cap truncates the **oldest** end of your window. Report the window you actually covered, not the one you requested.
+  - `first_released_at` (release_groups) is when Bugsnag first *saw* that version, which for a batch job is its first reported run — an upper bound on deploy time, not the deploy itself.
 
 Link shape: `https://<host>/<org-slug>/<project-slug>/errors/<error_id>?event_id=<event_id>`. The `errors/<error_id>` path segment IS a real API error id; the slugs are NOT ids.
 
@@ -89,6 +108,10 @@ Link shape: `https://<host>/<org-slug>/<project-slug>/errors/<error_id>?event_id
 - **Inventing a token location** — the token comes from `$BUGSNAG_AUTH_TOKEN` or `.env` in the skill dir — nothing else.
 - **Committing `.env`** — it holds the real token and is gitignored; only `.env.example` (a placeholder) is committed.
 - **Characterizing a custom-grouped error from one event** — with `grouping_reason: user_defined`/`custom`, messages diverge across events; sample with `--sample N` and report the distribution, never a single message.
+- **Omitting `full_reports=true`, then concluding the fields are empty** — `app`/`device`/`metaData` come back `null` in the summary form. That is the request shape, not missing data.
+- **Trusting the server-side release-stage filter without checking the rows** — when several environments report into one group, an unverified filter silently inflates every count. Re-filter client-side and say so.
+- **Reading an event's `app.version` as the version that produced the data being reported** — it is the version of the process that *emitted the event*. For a batch job re-checking historical records, the records themselves were usually written by an older build.
+- **Quoting a page-capped pull as the full window** — paging is newest-first, so a cap drops the oldest events. "First seen" dates from a truncated pull are floors, not facts.
 
 ## Reference
 
